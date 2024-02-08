@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat App</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+    #leftMenu {
+        float: left;
+        width: 15%;
+        height: 100vh;
+        background-color: #f2f2f2;
+        padding: 10px;
+    }
+    
+    #chatPanel {
+        float: right;
+        width: 80%;
+        height: 100vh;
+        padding: 10px;
+    }
+    
+    .groupItem {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    
+    .groupName {
+        flex-grow: 1;
+        text-decoration: none;
+        color: #333;
+        font-weight: bold;
+    }
+    
+    .joinButton {
+        margin-left: 10px;
+        background-color: #4CAF50; /* Green */
+        border: none;
+        color: white;
+        padding: 10px 20px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        cursor: pointer;
+    }
+    
+    .joinButton:hover {
+        background-color: #45a049; /* Darker green on hover */
+    }
+    
+    #chatHeader {
+        font-size: 20px;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+    
+    #chatHistory {
+        height: 70%;
+        overflow-y: scroll;
+        border: 1px solid #ddd;
+        padding: 10px;
+    }
+    
+    #messageInput {
+        margin-top: 10px;
+    }
+    
+    #messageInput input[type="text"] {
+        padding: 10px;
+        width: 80%;
+        border: 1px solid #ddd;
+    }
+    
+    #messageInput button {
+        background-color: #4CAF50; /* Green */
+        border: none;
+        color: white;
+        padding: 10px 20px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        cursor: pointer;
+    }
+    
+    #messageInput button:hover {
+        background-color: #45a049; /* Darker green on hover */
+    }
+    
+    #chatPanel button {
+        background-color: #f44336; /* Red */
+        border: none;
+        color: white;
+        padding: 10px 20px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        cursor: pointer;
+    }
+    
+    #chatPanel button:hover {
+        background-color: #d32f2f; /* Darker red on hover */
+    }
+</style>
+</head>
+<body>
+    <script>
+            var ioClient = io();//connect to the server
+            var socketID = ''
+            var groupName = ''
+            var username = localStorage.getItem('username');
+        document.addEventListener('DOMContentLoaded', function() {
+         
+            // get local storage's username
+            document.getElementById('username').innerHTML = "Hello! " + username;
+            ioClient.on('connect', function(){
+                socketID = ioClient.id;
+                document.getElementById('socketID').innerHTML = "Socket ID: " + socketID;
+                console.log('connected');
+                ioClient.emit('say_hello', "How are you all?");
+            });
+            ioClient.on('welcome', function(data){
+                console.log(data);
+            });
+            ioClient.on('chat_message', function(data){
+                console.log(`Chat: ${data.username}: ${data.message}`);
+                const container = document.getElementById('chatHistory');
+                container.innerHTML += `<p>${data.username}: ${data.message}</p>`;
+            });
+            ioClient.on('disconnect', function(){
+                console.log('disconnected');
+            });
+
+        });
+
+        document.getElementById('message').addEventListener('input', function() {
+         // Emit a typing event to the server
+            ioClient.emit('user_typing', { username, group: groupName });
+        });
+
+        // Listen for typing events from others
+        ioClient.on('user_typing', function(data) {
+        console.log(`${data.username} is typing...`);
+        // Update the UI to display "user is typing..."
+        document.getElementById('socketID').innerHTML = data.username + " is typing...";
+        });
+
+        function sendMessage() {
+            groupName = localStorage.getItem('currentGroup');
+            const data = {
+                group: groupName,
+                username: username,
+                message: document.getElementById('message').value
+            }
+                //const txtmessage = document.getElementById('message');
+                ioClient.emit('chat_message', data);
+                document.getElementById('message').value = '';
+            }
+
+        function sentGroupMessage() {
+                const data = {
+                    group: groupName,
+                    message: document.getElementById('message').value
+                }
+                ioClient.emit('group_message', data);
+            }
+
+            function joinGroup(groupName) {
+                console.log(`Joining group: ${groupName}`);
+                document.getElementById('chatHeader').innerHTML = `Group: ${groupName}`;
+                localStorage.setItem('currentGroup', groupName);
+                console.log(`Switching to group: ${groupName}`);
+                document.getElementById('chatHistory').innerHTML = '';
+                ioClient.emit('join_group', groupName);
+                fetchChatHistory(groupName);
+            }
+
+            async function fetchChatHistory(groupName) {
+                try {
+                // Make a request to fetch chat history for the selected group
+                    const response = await fetch(`/getChatHistory?group=${groupName}`);
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // Display chat history in the chatHistory div
+                        displayChatHistory(data.chatHistory);
+                    } else {
+                        console.error('Error fetching chat history:', data.error);
+                    }
+                } catch (error) {
+                    console.error('Error fetching chat history:', error);
+                }
+            }
+
+            function displayChatHistory(chatHistory) {
+                const chatHistoryDiv = document.getElementById('chatHistory');
+                chatHistoryDiv.innerHTML = ''; // Clear previous chat history
+
+                 // Sort chat history based on date_sent in ascending order
+                 chatHistory.sort((a, b) => new Date(a.date_sent) - new Date(b.date_sent));
+
+                // Display each message in the chatHistory div
+                chatHistory.forEach(message => {
+                    const messageElement = document.createElement('p');
+                    messageElement.textContent = `${message.from_user}: ${message.message}`;
+                    chatHistoryDiv.appendChild(messageElement);
+                });
+            }
+
+            function leave_group(groupName) {
+                // Remove the currentGroup item from localStorage
+                localStorage.removeItem('currentGroup');
+                document.getElementById('chatHeader').innerHTML = '';
+                document.getElementById('chatHistory').innerHTML = '';
+                ioClient.emit('leave_group', groupName);
+            }
+
+    </script> 
+    <!-- Logout button to "/" (index.html)-->
+    <a href="/">Logout</a>   
+    <h2>Group Chat app</h2>
+    <h4 id="socketID">Socket ID: </h4>
+    <h4 id="username">Hello, </h4>
+    <div id="leftMenu">
+        <h3>Group List</h3>
+        <div class="groupItem">
+            <span class="groupName">covid19</span>
+            <button class="joinButton" onclick="joinGroup('covid19')">Join Group</button>
+        </div>
+        <div class="groupItem">
+            <span class="groupName">News</span>
+            <button class="joinButton" onclick="joinGroup('news')">Join Group</button>
+        </div>
+        <div class="groupItem">
+            <span class="groupName">Sports</span>
+            <button class="joinButton" onclick="joinGroup('sports')">Join Group</button>
+        </div>
+    </div>
+
+    <div id="chatPanel">
+        <div id="chatHeader"></div>
+        <div id="chatHistory"></div>
+        <div id="typingIndicator"></div>
+        <div id="messageInput">
+            <input type="text" id="message" placeholder="Enter your message">
+            <button onclick="sendMessage()">Send Message</button>
+        </div>
+        <br/>
+        <button onclick="leave_group()">Leave Group</button>
+    </div>
+
+
+
+</body>
+</html>
