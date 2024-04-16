@@ -1,4 +1,4 @@
-# 101395302_lab_test1_chat_app
+# Group Chat app
 
 ## Features:
 1. Login/ Logout
