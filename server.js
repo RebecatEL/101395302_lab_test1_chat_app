@@ -2,6 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const app = express();
 const PORT = process.env.PORT || 3000;
+const path = require('path');
 
 app.use(bodyParser.json());
 
@@ -26,15 +27,18 @@ const ioServer = require('socket.io')(express_server);
 
 
 app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/index.html');
+  console.log('__dirname:', __dirname);
+  res.sendFile(path.join(__dirname, 'index.html'));
 })
 
 app.get('/group_chat', (req, res) => {
-    res.sendFile(__dirname + '/group_chat.html');
+  console.log('__dirname:', __dirname);
+    res.sendFile(path.join(__dirname, 'group_chat.html'));
 })
 
 app.get('/register', (req, res) => {
-    res.sendFile(__dirname + '/register.html');
+  console.log('__dirname:', __dirname);
+    res.sendFile(path.join(__dirname, 'register.html'));
 })
 
 // Express route for handling login
